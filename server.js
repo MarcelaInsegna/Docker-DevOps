@@ -1,36 +1,60 @@
 const express = require("express");
 const mysql = require("mysql");
+const cors = require("cors");
 
 const app = express();
 const port = 5000;
 
-// Configurar la conexión a la base de datos
-const db = mysql.createConnection({
-  host: "db_container_name", // Nombre del contenedor de MySQL
-  user: "root",
-  password: "tu_contraseña",
-  database: "tu_base_de_datos"
-});
+app.use(cors());
 
-db.connect((err) => {
-  if (err) {
-    console.error("Error conectando a la base de datos:", err);
-  } else {
-    console.log("Conexión a la base de datos exitosa.");
-  }
-});
+function handleDisconnect() {
+  const db = mysql.createConnection({
+    host: "db", 
+    user: "root",
+    password: "12345",
+    database: "ejemplo"
+  });
 
-// Endpoint para obtener los registros de la tabla
-app.get("/", (req, res) => {
-  db.query("SELECT * FROM tu_tabla", (err, results) => {
+  db.connect((err) => {
     if (err) {
-      res.status(500).send(err);
+      console.error("Error conectando a la base de datos:", err);
+      setTimeout(handleDisconnect, 2000); 
     } else {
-      res.json(results);
+      console.log("Conexión exitosa a la base de datos.");
     }
+  });
+
+  db.on("error", (err) => {
+    console.error("Error en la conexión:", err);
+    if (err.code === "PROTOCOL_CONNECTION_LOST") {
+      handleDisconnect(); 
+    } else {
+      throw err;
+    }
+  });
+
+  return db;
+}
+
+const db = handleDisconnect();
+
+app.get("/", (req, res) => {
+  console.log("Conectando a la base de datos...");
+
+  db.query("SELECT * FROM usuarios", (err, results) => {
+    if (err) {
+      console.error("Error en la consulta:", err.code, err.message);
+      return res.status(500).json({
+        error: "Error en la base de datos",
+        details: err.message
+      });
+    }
+
+    console.log("Consulta exitosa:", results);
+    res.json(results);
   });
 });
 
-app.listen(port, () => {
-  console.log(`Servidor corriendo en http://localhost:${port}`);
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Servidor corriendo en http:localhost:${port}`);
 });
